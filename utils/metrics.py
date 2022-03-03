@@ -71,6 +71,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir='.', names
 
     # Compute F1 (harmonic mean of precision and recall)
     f1 = 2 * p * r / (p + r + eps)
+    print("########################### : ", px[np.argmax(f1,axis=1)])
     names = [v for k, v in names.items() if k in unique_classes]  # list: only classes that have data
     names = {i: v for i, v in enumerate(names)}  # to dict
     if plot:
@@ -132,7 +133,13 @@ class ConfusionMatrix:
         Returns:
             None, updates confusion matrix accordingly
         """
-        detections = detections[detections[:, 4] > self.conf]
+        detection_classes = detections[:, 5].to(dtype = torch.long)
+        if isinstance(self.conf, (list, tuple, np.ndarray)) :
+            cf = torch.tensor(self.conf).cuda()
+            index = detections[:, 4] > cf[detection_classes]
+            detections = detections[index]
+        else :
+            detections = detections[detections[:, 4] > self.conf]
         gt_classes = labels[:, 0].int()
         detection_classes = detections[:, 5].int()
         iou = box_iou(labels[:, 1:], detections[:, :4])
@@ -175,7 +182,7 @@ class ConfusionMatrix:
         try:
             import seaborn as sn
 
-            array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1E-9) if normalize else 1)  # normalize columns
+             array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1E-9) if normalize else 1)  # normalize columns
             array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)
 
             fig = plt.figure(figsize=(12, 9), tight_layout=True)
