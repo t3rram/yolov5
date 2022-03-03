@@ -122,7 +122,7 @@ def run(data,
         compute_loss=None,
         merge='',
         include_class = []
-        ):
+                ):
     # Initialize/load model and set device
     training = model is not None
     if training:  # called by train.py
@@ -172,7 +172,7 @@ def run(data,
                                        workers=workers, prefix=colorstr(f'{task}: '),include_class=include_class,merge_path=merge)[0]
 
     seen = 0
-    confusion_matrix = ConfusionMatrix(nc=nc)
+    confusion_matrix = ConfusionMatrix(nc=nc, conf=[0.88689,0.54354,0.91992,0.05005,0.93393,0.027027])
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     class_map = coco80_to_coco91_class() if is_coco else list(range(1000))
     s = ('%20s' + '%11s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
