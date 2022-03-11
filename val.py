@@ -121,7 +121,8 @@ def run(data,
         callbacks=Callbacks(),
         compute_loss=None,
         merge='',
-        include_class = []
+        include_class = [],
+        conf_mat_thres = []
                 ):
     # Initialize/load model and set device
     training = model is not None
@@ -172,7 +173,7 @@ def run(data,
                                        workers=workers, prefix=colorstr(f'{task}: '),include_class=include_class,merge_path=merge)[0]
 
     seen = 0
-    confusion_matrix = ConfusionMatrix(nc=nc, conf=[0.88689,0.54354,0.91992,0.05005,0.93393,0.027027])
+    confusion_matrix = ConfusionMatrix(nc=nc, conf= conf_mat_thres) 
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     class_map = coco80_to_coco91_class() if is_coco else list(range(1000))
     s = ('%20s' + '%11s' * 6) % ('Class', 'Images', 'Labels', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
@@ -343,6 +344,7 @@ def parse_opt():
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     parser.add_argument('--merge', type=str, default='', help='labels in a different folder')
     parser.add_argument('--include_class', type=int, nargs='+', help='list of classes to use')
+    parser.add_argument('--conf_mat_thres', type=float, nargs='+', help='list of confidence threshold for each class used for confidence matrix')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
