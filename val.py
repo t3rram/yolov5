@@ -124,6 +124,9 @@ def run(
         plots=True,
         callbacks=Callbacks(),
         compute_loss=None,
+        merge='',
+        include_class = [],
+        conf_mat_thres = []
 ):
     # Initialize/load model and set device
     training = model is not None
@@ -179,10 +182,10 @@ def run(
                                        pad=pad,
                                        rect=rect,
                                        workers=workers,
-                                       prefix=colorstr(f'{task}: '))[0]
+                                       prefix=colorstr(f'{task}: '), include_class=include_class,merge_path=merge)[0]
 
     seen = 0
-    confusion_matrix = ConfusionMatrix(nc=nc)
+    confusion_matrix = ConfusionMatrix(nc=nc, conf= conf_mat_thres)
     names = model.names if hasattr(model, 'names') else model.module.names  # get class names
     if isinstance(names, (list, tuple)):  # old format
         names = dict(enumerate(names))
@@ -271,8 +274,10 @@ def run(
 
     # Compute metrics
     stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
+    f1_tresh_dict = dict()
     if len(stats) and stats[0].any():
-        tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+        tp, fp, p, r, f1, ap, ap_class, f1_tresh = ap_per_class(*stats, plot=plots, save_dir=save_dir, names=names)
+        f1_tresh_dict["seuils"]=f1_tresh.tolist()
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
     nt = np.bincount(stats[3].astype(int), minlength=nc)  # number of targets per class
@@ -333,7 +338,7 @@ def run(
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
-    return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
+    return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t, f1_tresh_dict
 
 
 def parse_opt():
@@ -360,6 +365,9 @@ def parse_opt():
     parser.add_argument('--exist-ok', action='store_true', help='existing project/name ok, do not increment')
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
+    parser.add_argument('--merge', type=str, default='', help='labels in a different folder')
+    parser.add_argument('--include_class', type=int, nargs='+', help='list of classes to use')
+    parser.add_argument('--conf_mat_thres', type=float, nargs='+', help='list of confidence threshold for each class used for confidence matrix')
     opt = parser.parse_args()
     opt.data = check_yaml(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
