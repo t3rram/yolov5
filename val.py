@@ -185,7 +185,7 @@ def run(
                                        prefix=colorstr(f'{task}: '), include_class=include_class,merge_path=merge)[0]
 
     seen = 0
-    confusion_matrix = ConfusionMatrix(nc=nc, conf= conf_mat_thres)
+    confusion_matrix = ConfusionMatrix(nc=nc, conf= 0.25)
     names = model.names if hasattr(model, 'names') else model.module.names  # get class names
     if isinstance(names, (list, tuple)):  # old format
         names = dict(enumerate(names))
@@ -219,6 +219,7 @@ def run(
         targets[:, 2:] *= torch.tensor((width, height, width, height), device=device)  # to pixels
         lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
         with dt[2]:
+
             preds = non_max_suppression(preds,
                                         conf_thres,
                                         iou_thres,

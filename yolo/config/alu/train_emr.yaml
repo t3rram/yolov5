@@ -1,0 +1,49 @@
+# COCO 2017 dataset http://cocodataset.org - first 128 training images
+# Train command: python train.py --data coco128.yaml
+# Default dataset location is next to YOLOv5:
+#   /parent_folder
+#     /coco128
+#     /yolov5
+
+
+# download command/URL (optional)
+#download: https://github.com/ultralytics/yolov5/releases/download/v1.0/coco128.zip
+
+# train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
+path: /home/shared/emr/data/alu
+train: /home/shared/emr/data/alu/train
+val: /home/shared/emr/data/alu/valid
+#test: yolo\data\acier\v-2021-10-25\test\images
+
+# number of classes
+nc: 16
+
+
+# class names
+names: [
+"barquette",
+"capsule_cafe_alu",
+"compote",
+"emballage_medicament",
+"morceau_alu",
+"sachet",
+"tube_alu",
+"capri_sun",
+#"non_emballage_en_alu",
+"autre_tube",
+"aerosol",
+"canette",
+"conserve",
+"opercule",
+#"emballage_plastique_souple",
+#"emballage_plastique_rigide",
+#"carton",
+#"papier",
+"pile_et_accu",
+#"col_de_bouteille_verre",
+#"autre_metaux",
+"bouchon_coiffe",
+"protection_alimentaire",
+#"autre_ela_tissus"
+]
+

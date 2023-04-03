@@ -104,6 +104,7 @@ class CometLogger:
         if run_id is None:
             self.experiment.log_other("Created from", "YOLOv5")
             if not isinstance(self.experiment, comet_ml.OfflineExperiment):
+                print(self.experiment.url.split("/")[-3:])
                 workspace, project_name, experiment_id = self.experiment.url.split("/")[-3:]
                 self.experiment.log_other(
                     "Run Path",
@@ -230,7 +231,6 @@ class CometLogger:
     def check_dataset(self, data_file):
         with open(data_file) as f:
             data_config = yaml.safe_load(f)
-
         if data_config['path'].startswith(COMET_PREFIX):
             path = data_config['path'].replace(COMET_PREFIX, "")
             data_dict = self.download_dataset_artifact(path)

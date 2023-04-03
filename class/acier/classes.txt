@@ -1,0 +1,17 @@
+aerosol
+conserve_ronde
+conserve_rectangulaire
+canette
+sirop
+opercule
+autre_acier_unique
+emballage_plastique_souple
+emballage_plastique_rigide
+carton
+papier
+fil
+plaque_carree
+plaque_longue_et_tube
+objet
+pile
+autre_non_acier

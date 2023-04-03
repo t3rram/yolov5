@@ -1,0 +1,4 @@
+#exp : test_evolve_exp
+config_file : train_emr.yaml
+save_dir : "./"
+image_size : 1280
