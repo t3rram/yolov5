@@ -13,6 +13,7 @@ import time
 from commons.json_tools import get_data_from_json
 from constants import CLASS_FOLDER
 from segmentation.predict_onnx import predict_onnx, predict
+from segmentation.segment_sam import segment
 from yolo.constants import CONFIG_FOLDER, RUNS_FOLDER
 from hubconf import custom  
 
@@ -42,13 +43,16 @@ def detect_count_objects(_results, images, model, model_type, conf_thres=[], yam
     hgts = []
     wdts = []
     crv_knn_weight = 0
+    areas_i = np.array([])
+    heights_i = np.array([])
+    widths_i = np.array([])
     # Parcourir les images et les objets détectés
     for result, img in zip(_results.pandas().xyxy, images):
+        boxs = []
         # yolo format - (class_id, x_center, y_center, width, height)
         # coco format - (annotation_id, x_upper_left, y_upper_left, width, height)
         img_w, img_h = img.size
         for i in range(len(result)):
-
             class_detect = result.loc[i, "class"]
             confidence = result.loc[i, "confidence"]
             xmin = result.loc[i, "xmin"]
@@ -65,6 +69,7 @@ def detect_count_objects(_results, images, model, model_type, conf_thres=[], yam
                 if class_names[class_detect] == "conserve_ronde":
                     if detection_type == "area" or detection_type == "knn":
                         # Crop des objets détectés
+                        boxs.append([xmin, ymin, xmax, ymax])
                         cropped_img = img.crop((xmin, ymin, xmax, ymax))
                         cropped_img = cropped_img.resize((256, 256))
                         # cropped_img.save("img_"+str(i)+".jpg")
@@ -79,40 +84,61 @@ def detect_count_objects(_results, images, model, model_type, conf_thres=[], yam
 
                 else:
                     dict_detect[class_names[class_detect]]["area"] += area
+        a_, h_, w_ = segment(img,boxs,device)
+        areas_i = np.concatenate((areas_i,a_))
+        heights_i = np.concatenate((heights_i,h_))
+        widths_i = np.concatenate((widths_i,w_))
     if detection_type == "area" or detection_type == "knn":
         # Utilisation du modèle ONNX pour la segmentation des objets détectés
         if model_type == 'onnx':
             areas, heights, widths = predict_onnx(model_path="segmentation/unet16_model.onnx", images=img_crv, areas=areas_crv, hgts=hgts, wdts=wdts, device=device)
         # Utilisation du modèle Pytorch pour la segmentation des objets détectés
         else :
-            areas, heights, widths = predict(model=model, images=img_crv, areas=areas_crv, hgts=hgts, wdts=wdts, device=device)
-        dict_detect["conserve_ronde"]["area"] = np.sum(areas)
+            #areas, heights, widths = predict(model=model, images=img_crv, areas=areas_crv, hgts=hgts, wdts=wdts, device=device)
+            areas_sam, heights_sam, widths_sam = areas_i, heights_i, widths_i
+            # area_comp = dict()
+            # area_comp["sam"] = areas_sam
+            # area_comp["old"] = areas
+            # area_data = pd.DataFrame.from_dict(area_comp)
+            # area_data.to_csv("./area_data.csv")
+        dict_detect["conserve_ronde"]["area"] = np.sum(areas_sam)
         # Application du knn
         if detection_type == "knn":
-            crv_knn_weight = detect_weight_knn(data_path, areas, heights, widths, k_neighbors, field)
+            #crv_knn_weight = detect_weight_knn(data_path, areas, heights, widths, k_neighbors, field)
+            crv_knn_weight = detect_weight_knn(data_path, areas_sam, heights_sam, widths_sam, k_neighbors, field)
     return dict_detect, crv_knn_weight
 
 # Fonction de détection des poids avec knn
 def detect_weight_knn(data_path, areas, heights, widths, k_neighbors=10, field=1):
     # Récupérer les données des conserves rondes de réference (poids, longueur, largeur, surface)
-    excel_data = pd.read_csv(data_path)
+    excel_data = pd.read_csv(data_path, delimiter=";")
     data = pd.DataFrame(excel_data, columns=["poids", "h", "w", "S_seg_autre"])
     # Calculer le rapport h/w
     data["rapp_h_w"] = data["h"] / data["w"]
+    #data["rapp_h_w"] = (data["rapp_h_w"] - data["rapp_h_w"].mean()) / data["rapp_h_w"].std()
     # Adaptation de l'unité de surface
     data["S_seg_autre"] = data["S_seg_autre"] / 1000000
+    #data["S_seg_autre"] = (data["S_seg_autre"] - data["S_seg_autre"].mean()) / data["S_seg_autre"].std()
     weights = data.poids.to_numpy()
-    X = np.array([data.rapp_h_w.to_numpy(), data.S_seg_autre.to_numpy()]).reshape(-1, 2)
+    #X = np.array([data.rapp_h_w.to_numpy(), data.S_seg_autre.to_numpy()]).reshape(-1, 2)
+    X = np.array([ data.S_seg_autre.to_numpy()]).reshape(-1,1)
     neigh = KNeighborsRegressor(n_neighbors=int(k_neighbors))
     neigh.fit(X, weights)
     # Normaliser la surface
-    areas_n = (field * areas - data["S_seg_autre"].mean()) / data["S_seg_autre"].std()
+    #areas_n = (field * areas - data["S_seg_autre"].mean()) / data["S_seg_autre"].std()
+    areas_n = field*areas
     rapp_h_l = heights / widths
     # Normaliser le rapport h/w
-    rapp_h_l_n = (rapp_h_l - data["rapp_h_w"].mean()) / data["rapp_h_w"].std()
+    #rapp_h_l_n = (rapp_h_l - data["rapp_h_w"].mean()) / data["rapp_h_w"].std()
+    rapp_h_l_n = rapp_h_l
     data_last_format = [[axe1, axe2] for axe1, axe2 in zip(rapp_h_l_n, areas_n)]
     # Pédire les poids
-    weights_hat = neigh.predict(data_last_format)
+    weights_hat = neigh.predict(areas_n.reshape(-1,1))
+    #area_comp = dict()
+    #area_comp["areas"] = areas
+    #area_comp["knn_poids"] = weights_hat.tolist()
+    #area_data = pd.DataFrame.from_dict(area_comp)
+    #area_data.to_csv("./area_weight_"+seg_type+".csv")
     total_weight = np.sum(weights_hat)
     return total_weight
 
@@ -212,14 +238,14 @@ def generate_report(carac_results, save_dir, flow, detection_type):
         carac_weights[v] = st.number_input("Insert " + k + " weight (g)")
     # Saisir les poids de la détection dans le template
     for i in range(1, len(carac_results)+1):
-        cls = str(worksheet.cell(row=i + 4, column=1).value)
+        cls = str(worksheet.cell(row=i + 15, column=1).value)
         poids = carac_results[i-1]["detect_weight(g)"]
         if detection_type == "knn" and cls == "conserve_ronde":
             poids = carac_results[class2idx[cls]]["detect_weight(g)_knn"]
-        worksheet.cell(row=i + 4, column=2).value = poids
+        worksheet.cell(row=i + 15, column=2).value = poids
     # Saisir les poids de la carac manuelle dans le template
     for i in range(1, len(emr_classes.keys())+1):
-        worksheet.cell(row=i + 4, column=flow_template).value = carac_weights[i - 1]
+        worksheet.cell(row=i + 15, column=flow_template).value = carac_weights[i - 1]
     # Sauvegarder le rapport
     wb.save(os.path.join(save_dir, "report.xlsx"))
     # Button pour télécharger le rapport
@@ -250,7 +276,7 @@ def main():
         'experience ?',
         ('2022_11_02_exp', 'test_evolve_exp'))
         k_neighbors = st.number_input(
-        'Number of neighbors for knn ?',min_value = 1, max_value = 60)
+        'Number of neighbors for knn ?',min_value = 1, max_value = 100)
     else :
         exp = 'test_evolve_exp'
         k_neighbors=None
@@ -262,8 +288,8 @@ def main():
     device = torch.device(select_device if torch.cuda.is_available() else "cpu")
     # Choix du type de modèle en fonction de du device
     model_type = 'pt' if select_device == "cuda:0" else 'onnx'
-    # Choix du champs de vision (fiel) en fonction du flux
-    field = 2 if flow=="acier" else 1
+    # Choix du champs de vision (field) en fonction du flux (à modifier pendant le calibrage)
+    field = 2.614 if flow=="acier" else 1
     # Choix de type de détection en fonction du flux
     detection_type = "knn" if flow=="acier" else "weight"
     # Choix de source de données (local ou upload)

@@ -22,6 +22,7 @@
 *.xlsx
 *.csv
 *.cfg
+*.pth
 !setup.cfg
 !cfg/yolov3*.cfg
 
